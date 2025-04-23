@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-from tqdm import tqdm
 import torch
+from tqdm import tqdm
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets.folder import pil_loader
@@ -87,7 +87,9 @@ def get_dataloaders(data, batch_size=32, study_level=False):
         'train': transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(10),
+            transforms.RandomRotation(15),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),

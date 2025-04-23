@@ -63,6 +63,8 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
                 if epoch_acc > best_acc:
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
+            # At the end of each epoch
+            print(f'Current learning rate: {optimizer.param_groups[0]["lr"]}')
         time_elapsed = time.time() - since
         print('Time elapsed: {:.0f}m {:.0f}s'.format(
             time_elapsed // 60, time_elapsed % 60))

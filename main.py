@@ -13,7 +13,7 @@ def main(train=True):
 
     # #### Create dataloaders pipeline
     data_cat = ['train', 'valid']  # data categories
-    dataloaders = get_dataloaders(study_data, batch_size=32)
+    dataloaders = get_dataloaders(study_data, batch_size=16)
     dataset_sizes = {x: len(study_data[x]) for x in data_cat}
 
     # #### Build model
@@ -36,22 +36,29 @@ def main(train=True):
             self.Wt0 = Wt0
 
         def forward(self, inputs, targets, phase):
-            loss = - (self.Wt1[phase] * targets * inputs.log() +
-                      self.Wt0[phase] * (1 - targets) * (1 - inputs).log())
+            epsilon = 1e-7
+            inputs = torch.clamp(inputs, epsilon, 1-epsilon)
+            loss = - (self.Wt1[phase] * targets * torch.log(inputs.flatten()) +
+                      self.Wt0[phase] * (1 - targets) * torch.log(1 - inputs.flatten()))
             return loss
 
+    # Freeze early layers if using pretrained
     model = densenet169(pretrained=True)
+    # Freeze first few layers
+    # Keep last few layers trainable
+    for param in list(model.parameters())[:-4]:
+        param.requires_grad = False
     model.to(device)
 
     criterion = Loss(Wt1, Wt0)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', patience=1, verbose=True)
+        optimizer, mode='min', patience=2, factor=0.1)
 
     # Train model
     if train:
         model = train_model(model, criterion, optimizer,
-                            dataloaders, scheduler, dataset_sizes, num_epochs=1)
+                            dataloaders, scheduler, dataset_sizes, num_epochs=10)
         torch.save(model.state_dict(), 'models/model.pth')
     else:
         model = densenet169(pretrained=True)
@@ -63,4 +70,4 @@ def main(train=True):
 
 if __name__ == '__main__':
     # multiprocessing.freeze_support()
-    main(train=False)
+    main(train=True)
