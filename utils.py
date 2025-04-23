@@ -1,9 +1,9 @@
 import torch
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-from torchnet import meter
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
 
 def plot_training(costs, accs):
     '''
@@ -17,25 +17,27 @@ def plot_training(costs, accs):
     epochs = range(len(train_acc))
 
     plt.figure(figsize=(10, 5))
-    
+
     plt.subplot(1, 2, 1)
     plt.plot(epochs, train_acc)
     plt.plot(epochs, valid_acc)
     plt.legend(['train', 'valid'], loc='upper left')
     plt.title('Accuracy')
-    
+
     plt.subplot(1, 2, 2)
     plt.plot(epochs, train_cost)
     plt.plot(epochs, valid_cost)
     plt.legend(['train', 'valid'], loc='upper left')
     plt.title('Cost')
-    
+
     plt.show()
 
+
 def n_p(x):
-    '''convert numpy float to Variable tensor float'''    
+    '''convert numpy float to Variable tensor float'''
     return Variable(torch.tensor([x], dtype=torch.float32, device=device), requires_grad=False)
     # return Variable(torch.cuda.FloatTensor([x]), requires_grad=False)
+
 
 def get_count(df, cat):
     '''
@@ -47,5 +49,5 @@ def get_count(df, cat):
     return df[df['Path'].str.contains(cat)]['Count'].sum()
 
 
-if __name__=='main':
+if __name__ == 'main':
     pass

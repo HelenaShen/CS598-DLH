@@ -1,31 +1,30 @@
 import time
 import copy
 import torch
-import math
 from torchnet import meter
-from torch.autograd import Variable
 from utils import plot_training
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-data_cat = ['train', 'valid'] # data categories
+data_cat = ['train', 'valid']  # data categories
 
-def train_model(model, criterion, optimizer, dataloaders, scheduler, 
+
+def train_model(model, criterion, optimizer, dataloaders, scheduler,
                 dataset_sizes, num_epochs):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
-    costs = {x:[] for x in data_cat} # for storing costs per epoch
-    accs = {x:[] for x in data_cat} # for storing accuracies per epoch
+    costs = {x: [] for x in data_cat}  # for storing costs per epoch
+    accs = {x: [] for x in data_cat}  # for storing accuracies per epoch
     print('Train batches:', len(dataloaders['train']))
     print('Valid batches:', len(dataloaders['valid']), '\n')
     for epoch in range(num_epochs):
-        confusion_matrix = {x: meter.ConfusionMeter(2, normalized=True) 
+        confusion_matrix = {x: meter.ConfusionMeter(2, normalized=True)
                             for x in data_cat}
         print('Epoch {}/{}'.format(epoch+1, num_epochs))
         print('-' * 10)
         # Each epoch has a training and validation phase
         for phase in data_cat:
-            model.train(phase=='train')
+            model.train(phase == 'train')
             running_loss = 0.0
             running_corrects = 0
             # Iterate over data.
@@ -41,16 +40,13 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
                     labels = data['label'].type(torch.float32).to(device)
                     optimizer.zero_grad()
                     outputs = model(inputs)
-                # outputs = torch.mean(outputs)
                 loss = criterion(outputs, labels, phase)
                 loss = loss.mean()
                 running_loss += loss
-                # backward + optimize only if in training phase
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
                 # statistics
-                # preds = (outputs.data > 0.5).float().unsqueeze(0).to(device)
                 preds = (outputs.data > 0.5).float().flatten()
                 running_corrects += torch.sum(preds == labels.data)
                 confusion_matrix[phase].add(preds.cpu(), labels.data.cpu())
@@ -69,7 +65,7 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
                     best_model_wts = copy.deepcopy(model.state_dict())
         time_elapsed = time.time() - since
         print('Time elapsed: {:.0f}m {:.0f}s'.format(
-                time_elapsed // 60, time_elapsed % 60))
+            time_elapsed // 60, time_elapsed % 60))
         print()
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
