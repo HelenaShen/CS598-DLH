@@ -3,13 +3,15 @@ import copy
 import torch
 from torchnet import meter
 from utils import plot_training
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 data_cat = ['train', 'valid']  # data categories
 
 
 def train_model(model, criterion, optimizer, dataloaders, scheduler,
-                dataset_sizes, num_epochs):
+                dataset_sizes, num_epochs, study_type, start_epoch=0):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -17,7 +19,7 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
     accs = {x: [] for x in data_cat}  # for storing accuracies per epoch
     print('Train batches:', len(dataloaders['train']))
     print('Valid batches:', len(dataloaders['valid']), '\n')
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         confusion_matrix = {x: meter.ConfusionMeter(2, normalized=True)
                             for x in data_cat}
         print('Epoch {}/{}'.format(epoch+1, num_epochs))
@@ -69,6 +71,17 @@ def train_model(model, criterion, optimizer, dataloaders, scheduler,
         print('Time elapsed: {:.0f}m {:.0f}s'.format(
             time_elapsed // 60, time_elapsed % 60))
         print()
+        if (epoch + 1) % 10 == 0:
+            # save checkpoint
+            torch.save({
+                'epoch': epoch+1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'best_acc': best_acc,
+                'costs': costs,
+                'accs': accs
+            }, f'checkpoints/{study_type}_checkpoint_{epoch+1}.pth')
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
@@ -107,3 +120,30 @@ def get_metrics(model, criterion, dataloaders, dataset_sizes, phase='valid'):
     acc = running_corrects / dataset_sizes[phase]
     print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, loss, acc))
     print('Confusion Meter:\n', confusion_matrix.value())
+
+
+def get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid'):
+    """use sklearn to plot precision recall curve"""
+    # Get predictions and labels
+    predictions = []
+    labels = []
+    for i, data in enumerate(dataloaders[phase]):
+        print(i, end='\r')
+        with torch.no_grad():
+            label = data['label'].type(torch.float32).to(device)
+            input = data['images'].to(device)
+            output = model(input)
+            pred = output.data.float().flatten()
+            predictions.extend(pred.cpu().numpy())
+            labels.extend(label.cpu().numpy())
+
+    # Calculate precision-recall curve
+    precision, recall, thresholds = precision_recall_curve(labels, predictions)
+
+    # Plot precision-recall curve
+    plt.figure(figsize=(10, 7))
+    plt.plot(recall, precision, color='b', lw=2)
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve')
+    plt.show()

@@ -2,14 +2,14 @@ import torch
 from densenet import densenet169
 from utils import n_p, get_count
 from train import train_model, get_metrics
-from pipeline import get_dataloaders, get_patient_level_csv_data
+from pipeline import get_dataloaders, get_study_level_csv_data
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 
-def main(train=True):
+def main(train=True, study_type='XR_WRIST', checkpoint_path=None):
     # #### load study level dict data
-    study_data = get_patient_level_csv_data(study_type='XR_WRIST')
+    study_data = get_study_level_csv_data(study_type=study_type)
 
     # #### Create dataloaders pipeline
     data_cat = ['train', 'valid']  # data categories
@@ -57,17 +57,26 @@ def main(train=True):
 
     # Train model
     if train:
+        start_epoch = 0
+        if checkpoint_path is not None:
+            checkpoint = torch.load(checkpoint_path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            start_epoch = checkpoint['epoch']
+            best_acc = checkpoint['best_acc']
+            print(f"Resuming from epoch {start_epoch} with best accuracy: {best_acc}")
         model = train_model(model, criterion, optimizer,
-                            dataloaders, scheduler, dataset_sizes, num_epochs=10)
-        torch.save(model.state_dict(), 'models/model.pth')
+                            dataloaders, scheduler, dataset_sizes, num_epochs=20,
+                            study_type=study_type, start_epoch=start_epoch)
+        torch.save(model.state_dict(), f'models/model_{study_type}.pth')
     else:
         model = densenet169(pretrained=True)
-        model.load_state_dict(torch.load('models/model.pth'))
+        model.load_state_dict(torch.load(f'models/model_{study_type}.pth'))
         model.to(device)
 
-    get_metrics(model, criterion, dataloaders, dataset_sizes)
-
+    get_metrics(model, criterion, dataloaders, dataset_sizes, phase='valid')
+    # get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid')
 
 if __name__ == '__main__':
-    # multiprocessing.freeze_support()
-    main(train=True)
+    main(train=False, study_type='XR_HUMERUS')

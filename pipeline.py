@@ -38,7 +38,7 @@ def get_study_level_data(study_type):
     return study_data
 
 
-def get_patient_level_csv_data(study_type):
+def get_study_level_csv_data(study_type = None, subsample_rate = None):
     study_data = {}
     study_label = {'positive': 1, 'negative': 0}
     study_csv_paths = {
@@ -51,7 +51,12 @@ def get_patient_level_csv_data(study_type):
         df['Label'] = df['Path'].apply(
             lambda x: study_label[x.split('/')[-2].split('_')[1]])
         df['Count'] = 1
-        study_data[phase] = df[df['Study'] == study_type]
+        if study_type is not None:
+            study_data[phase] = df[df['Study'] == study_type]
+        else:
+            study_data[phase] = df
+        if subsample_rate is not None:
+            study_data[phase] = study_data[phase].sample(frac=subsample_rate)
     return study_data
 
 
@@ -103,7 +108,7 @@ def get_dataloaders(data, batch_size=32, study_level=False):
         data[x], transform=data_transforms[x]) for x in data_cat}
     dataloaders = {
         'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=0),
-        'valid': DataLoader(image_datasets['valid'], batch_size=batch_size//2, shuffle=False, num_workers=0)
+        'valid': DataLoader(image_datasets['valid'], batch_size=batch_size//2, shuffle=True, num_workers=0)
     }
     return dataloaders
 
@@ -111,5 +116,5 @@ def get_dataloaders(data, batch_size=32, study_level=False):
 if __name__ == '__main__':
     # study_data = get_study_level_data(study_type='XR_WRIST')
     # dataloaders = get_dataloaders(study_data, batch_size=1)
-    study_data = get_patient_level_csv_data(study_type='XR_WRIST')
+    study_data = get_study_level_csv_data(study_type='XR_WRIST')
     dataloaders = get_dataloaders(study_data, batch_size=1, study_level=True)
