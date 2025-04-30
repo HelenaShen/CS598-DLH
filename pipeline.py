@@ -60,6 +60,32 @@ def get_study_level_csv_data(study_type = None, subsample_rate = None):
     return study_data
 
 
+def get_classification_data(subsample_rate = None):
+    study_data = {}
+    label_values = {
+        'XR_ELBOW': 0,
+        'XR_FINGER': 1,
+        'XR_FOREARM': 2,
+        'XR_HAND': 3,
+        'XR_HUMERUS': 4,
+        'XR_SHOULDER': 5,
+        'XR_WRIST': 6,
+    }
+    study_csv_paths = {
+        'train': 'MURA-v1.1/train_image_paths.csv',
+        'valid': 'MURA-v1.1/valid_image_paths.csv',
+    }
+    for phase in study_csv_paths.keys():
+        df = pd.read_csv(study_csv_paths[phase], header=None, names=['Path'])
+        df['Study'] = df['Path'].apply(lambda x: x.split('/')[2])
+        df['Label'] = df['Study'].apply(lambda x: label_values[x])
+        df['Count'] = 1
+        study_data[phase] = df
+        if subsample_rate is not None:
+            study_data[phase] = study_data[phase].sample(frac=subsample_rate)
+    return study_data
+
+
 class ImageDataset(Dataset):
     """training dataset."""
 

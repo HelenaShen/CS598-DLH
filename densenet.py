@@ -24,6 +24,19 @@ def densenet169(pretrained=False, **kwargs):
         model.load_state_dict(model_zoo.load_url(model_urls['densenet169']), strict=False)
     return model
 
+def densenet169_classifier(pretrained=False, **kwargs):
+    """Densenet-169 model for multi-class classification
+    
+    Args:
+        pretrained (bool): If True, loads ImageNet pre-trained weights
+        num_classes (int): Number of output classes
+    """
+    model = DenseNetClassifier(num_init_features=64, growth_rate=32, 
+                              block_config=(6, 12, 32, 32), **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['densenet169']), strict=False)
+    return model
+
 class _DenseLayer(nn.Sequential):
     def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):
         super(_DenseLayer, self).__init__()
@@ -126,3 +139,76 @@ class DenseNet(nn.Module):
         # out = F.relu(self.classifier(out))
         out = F.sigmoid(self.fc(out))
         return out
+
+
+class DenseNetClassifier(nn.Module):
+    def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
+                 num_init_features=64, bn_size=4, drop_rate=0, num_classes=7):
+
+        super(DenseNetClassifier, self).__init__()
+
+        # First convolution
+        self.features = nn.Sequential(OrderedDict([
+            ('conv0', nn.Conv2d(3, num_init_features, kernel_size=7, stride=2, padding=3, bias=False)),
+            ('norm0', nn.BatchNorm2d(num_init_features)),
+            ('relu0', nn.ReLU(inplace=True)),
+            ('pool0', nn.MaxPool2d(kernel_size=3, stride=2, padding=1)),
+        ]))
+
+        # Each denseblock
+        num_features = num_init_features
+        for i, num_layers in enumerate(block_config):
+            block = _DenseBlock(num_layers=num_layers, num_input_features=num_features,
+                              bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
+            self.features.add_module('denseblock%d' % (i + 1), block)
+            num_features = num_features + num_layers * growth_rate
+            if i != len(block_config) - 1:
+                trans = _Transition(num_input_features=num_features, num_output_features=num_features // 2)
+                self.features.add_module('transition%d' % (i + 1), trans)
+                num_features = num_features // 2
+
+        # Final batch norm
+        self.features.add_module('norm5', nn.BatchNorm2d(num_features))
+        
+        # Linear layers for classification
+        self.classifier = nn.Linear(num_features, 1000)
+        self.vector_fc = nn.Linear(1000, 64)
+        self.fc = nn.Linear(64, num_classes)
+        self.dropout = nn.Dropout(p=drop_rate)
+        
+        # Official init from torch repo
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal(m.weight.data)
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        # Feature extraction
+        features = self.features(x)
+        # Apply ReLU only during training
+        if self.training:
+            out = F.relu(features, inplace=True)
+        else:
+            out = features
+        # Global average pooling
+        out = F.avg_pool2d(out, kernel_size=7, stride=1)
+        out = out.view(out.size(0), -1)  # Flatten
+        # Classification layers
+        if self.training:
+            out = self.dropout(out)
+            out = F.relu(self.classifier(out))
+            out = self.dropout(out)
+            out = F.relu(self.vector_fc(out))
+            out = self.dropout(out)
+        else:
+            out = self.classifier(out)
+            out = self.vector_fc(out)
+        vector_out = out
+        out = self.fc(out)
+        # For multi-class classification, use softmax
+        out = F.softmax(out, dim=1)
+        return out, vector_out

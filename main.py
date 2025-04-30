@@ -7,9 +7,10 @@ from pipeline import get_dataloaders, get_study_level_csv_data
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 
-def main(train=True, study_type='XR_WRIST', checkpoint_path=None):
+def main(train=True, study_type='XR_WRIST', checkpoint_path=None, subsample_rate=None):
     # #### load study level dict data
-    study_data = get_study_level_csv_data(study_type=study_type)
+    study_data = get_study_level_csv_data(study_type=study_type, subsample_rate=subsample_rate)
+    study_type = study_type if study_type is not None else 'all'
 
     # #### Create dataloaders pipeline
     data_cat = ['train', 'valid']  # data categories
@@ -79,4 +80,4 @@ def main(train=True, study_type='XR_WRIST', checkpoint_path=None):
     # get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid')
 
 if __name__ == '__main__':
-    main(train=False, study_type='XR_HUMERUS')
+    main(train=True, study_type=None, subsample_rate=0.2)
