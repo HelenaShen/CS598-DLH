@@ -1,7 +1,7 @@
 import torch
 from densenet import densenet169
 from utils import n_p, get_count
-from train import train_model, get_metrics
+from train import train_model, get_pr_curve, get_pr_curves
 from pipeline import get_dataloaders, get_study_level_csv_data
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -76,8 +76,25 @@ def main(train=True, study_type='XR_WRIST', checkpoint_path=None, subsample_rate
         model.load_state_dict(torch.load(f'models/model_{study_type}.pth'))
         model.to(device)
 
-    get_metrics(model, criterion, dataloaders, dataset_sizes, phase='valid')
-    # get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid')
+    # get_metrics(model, criterion, dataloaders, dataset_sizes, phase='valid')
+    get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid')
+
+def evaluate_models():
+    study_names = ["XR_ELBOW", "XR_FINGER", "XR_FOREARM", "XR_HAND", "XR_HUMERUS", "XR_SHOULDER", "XR_WRIST", "all"]
+    models = []
+    dataloaders = []
+    for study_name in study_names:
+        model = densenet169(pretrained=True)
+        model.load_state_dict(torch.load(f'models/model_{study_name}.pth'))
+        model.to(device)
+        models.append(model)
+        if study_name != "all":
+            study_data = get_study_level_csv_data(study_type=study_name)
+        else:
+            study_data = get_study_level_csv_data(subsample_rate=0.2)
+        dataloaders.append(get_dataloaders(study_data, batch_size=16))
+    get_pr_curves(models, dataloaders, study_names)
 
 if __name__ == '__main__':
-    main(train=True, study_type=None, subsample_rate=0.2)
+    # main(train=False, study_type='XR_WRIST')
+    evaluate_models()

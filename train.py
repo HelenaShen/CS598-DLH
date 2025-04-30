@@ -265,6 +265,38 @@ def get_pr_curve(model, criterion, dataloaders, dataset_sizes, phase='valid'):
     plt.title('Precision-Recall Curve')
     plt.show()
 
+def get_pr_curves(models, dataloaders, study_names, phase='valid'):
+    precisions = []
+    recalls = []
+    for model, dataloader, study_name in zip(models, dataloaders, study_names):
+        print(f"Evaluating {study_name}...")
+        predictions = []
+        labels = []
+        for i, data in enumerate(dataloader[phase]):
+            print(i, end='\r')
+            with torch.no_grad():
+                label = data['label'].type(torch.float32).to(device)
+                input = data['images'].to(device)
+                output = model(input)
+                pred = output.data.float().flatten()
+                predictions.extend(pred.cpu().numpy())
+                labels.extend(label.cpu().numpy())
+        precision, recall, thresholds = precision_recall_curve(labels, predictions)
+        precisions.append(precision)
+        recalls.append(recall)
+
+    # plot PR curves overlapped in one plot with different colors
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(study_names)))
+    plt.figure()
+    for precision, recall, study_name, color in zip(precisions, recalls, study_names, colors):
+        plt.plot(recall, precision, label=study_name, color=color)
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curves by Study Type')
+    plt.legend()
+    plt.grid(True)  # Optional: adds grid for better readability
+    plt.show()
+
 
 def k_means_clustering(vector_data, num_classes):
 
@@ -284,8 +316,19 @@ def plot_pca(vector_data, centers):
     labels = np.array([lb for lb, _ in vector_data])
     pca = PCA(n_components=2)
     vectors_pca = pca.fit_transform(vectors)
-    plt.scatter(vectors_pca[:, 0], vectors_pca[:, 1], c=labels)
-    plt.scatter(centers[:, 0], centers[:, 1], c='red', marker='x', s=200)
+    plt.figure(figsize=(10, 8))  # Optional: make plot larger
+    # Create scatter plot with label for data points
+    scatter = plt.scatter(vectors_pca[:, 0], vectors_pca[:, 1], c=labels, label='Data Points')
+    # Add labels and title
+    plt.xlabel('First Principal Component')
+    plt.ylabel('Second Principal Component')
+    plt.title('PCA Visualization of Feature Vectors')
+    # Add colorbar for labels
+    plt.colorbar(scatter, label='Class Labels')
+    # Add legend
+    plt.legend()
+    # Optional: add grid for better readability
+    plt.grid(True, alpha=0.3)
     plt.show()
 
 if __name__ == '__main__':
